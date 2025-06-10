@@ -1,11 +1,9 @@
-import { UserRegService } from "../services/UserService.js";
-import { UserLoginService } from "../services/UserService.js";
+import { UserRegService,UserLoginService,UserLogoutService } from "../services/UserService.js";
 
 
 
 export const register = async (req, res) => {
     try {
-        // Get email and password from request BODY (not params)
         const { email, password } = req.body;
         
         if (!email || !password) {
@@ -17,7 +15,6 @@ export const register = async (req, res) => {
 
         const result = await UserRegService(email, password);
         
-        // Return appropriate status code based on result
         const statusCode = result.status === "success" ? 201 : 400;
         return res.status(statusCode).json(result);
     } catch (error) {
@@ -32,7 +29,6 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
     try {
-        // Get email and password from request BODY (not params)
         const { email, password } = req.body;
         
         if (!email || !password) {
@@ -56,32 +52,32 @@ export const login = async (req, res) => {
     }
 }
 
-
-
-export const createblog = async (req, res) => {
+export const logout = async (req, res) => {
     try {
-        // Get email and password from request BODY (not params)
-        const { email, password } = req.body;
+        // Get token from Authorization header
+        const token = req.headers.authorization?.split(' ')[1];
         
-        if (!email || !password) {
+        if (!token) {
             return res.status(400).json({
                 status: "fail",
-                message: "Email and password are required"
+                message: "Authorization token is required"
             });
         }
 
-        const result = await UserRegService(email, password);
+        const result = await UserLogoutService(token);
         
-        // Return appropriate status code based on result
-        const statusCode = result.status === "success" ? 201 : 400;
+        const statusCode = result.status === "success" ? 200 : 400;
         return res.status(statusCode).json(result);
     } catch (error) {
-        console.error("Registration error:", error);
+        console.error("Logout error:", error);
         return res.status(500).json({
             status: "error",
             message: "Internal server error"
         });
     }
 }
+
+
+
 
 

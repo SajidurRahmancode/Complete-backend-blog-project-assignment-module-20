@@ -1,25 +1,17 @@
 
+import { CreateBlogService,readBlogService,editBlogService,deleteBlogService } from '../services/BlogService.js';
 
 
 export const createblog = async (req, res) => {
     try {
-        // Get email and password from request BODY (not params)
-        const { email, password } = req.body;
-        
-        if (!email || !password) {
-            return res.status(400).json({
-                status: "fail",
-                message: "Email and password are required"
-            });
+        let result = await CreateBlogService(req); 
+        if (result.status === "success") {
+            return res.status(201).json(result); 
+        } else {
+            return res.status(400).json(result);
         }
-
-        const result = await UserRegService(email, password);
-        
-        // Return appropriate status code based on result
-        const statusCode = result.status === "success" ? 201 : 400;
-        return res.status(statusCode).json(result);
     } catch (error) {
-        console.error("Registration error:", error);
+        console.error("Post writing error:", error);
         return res.status(500).json({
             status: "error",
             message: "Internal server error"
@@ -27,4 +19,53 @@ export const createblog = async (req, res) => {
     }
 }
 
+export const readblog = async (req, res) => {
+    try {
+        let result = await readBlogService(req); 
+        if (result.status === "success") {
+            return res.status(200).json(result); 
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        console.error("Post reading error:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Internal server error"
+        });
+    }
+};
 
+export const editblog = async (req, res) => {
+    try {
+        let result = await editBlogService(req); 
+        if (result.status === "success") {
+            return res.status(200).json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        console.error("Post editing error:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Internal server error"
+        });
+    }
+};
+
+export const deleteblog = async (req, res) => {
+    try {
+        let result = await deleteBlogService(req); 
+        if (result.status === "success") {
+            return res.status(200).json(result); 
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        console.error("Post deleting error:", error);
+        return res.status(500).json({
+            status: "error",
+            message: "Internal server error"
+        });
+    }
+};

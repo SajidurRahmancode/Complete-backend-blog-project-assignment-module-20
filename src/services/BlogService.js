@@ -1,131 +1,150 @@
-import UserModel from '../models/UserModel.js';
-import bcrypt from 'bcrypt';
-import { EncodeToken } from '../utils/TokenHelper.js';
-import { DecodeToken } from '../utils/TokenHelper.js';
+import BlogModel from '../models/BlogModel.js';
 
-// Helper functions
-const validateEmail = (email) => {
-    // More robust version with trimming
-    const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return re.test(String(email).trim().toLowerCase());
-};
 
-const validatePassword = (password) => {
-    // Minimum 8 characters, at least one letter, one number and one special character
-    const re = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-    return re.test(password);
-};
 
-export const UserRegService = async (email, password) => { 
+export const CreateBlogService = async (req) => { 
     try {
-        // Validate email format
-        if (!validateEmail(email)) {
-            return { status: "fail", message: "Invalid email format" };
+        const { title, post } = req.body;
+        const userID = req.user.user_id; // From JWT token
+        
+        const data = await BlogModel.create({
+            title,
+            post,
+            userID
+        });
+        
+        return { 
+            status: "success", 
+            data: {
+                _id: data._id,
+                title: data.title,
+                post: data.post,
+                userID: data.userID,
+                createdAt: data.createdAt
+            }
+        };
+    } catch (e) {
+        if (e.name === 'ValidationError') {
+            return { status: "fail", message: `Validation error: ${e.message}` };
         }
+        return { 
+            status: "error", 
+            message: "An unexpected error occurred while creating blog",
+            systemMessage: e.message 
+        };
+    }
+}
 
-        // Validate password strength
-        if (!validatePassword(password)) {
+
+export const readBlogService = async (req) => {
+    try {
+        const userID = req.user.user_id; 
+
+        // Fetch only blogs belonging to the authenticated user
+/*         const data = await BlogModel.find({ userID }).populate('userID', '-password'); 
+ */  
+       const data = await BlogModel.find().populate('userID', '-password'); 
+
+        if (!data || data.length === 0) {
             return { 
-                status: "fail", 
-                message: "Password must be at least 8 characters long and contain at least one letter, one number, and one special character" 
+                status: "success", 
+                data: [], 
+                message: "No blogs found." 
             };
         }
 
-        // Check if user already exists
-        const existingUser = await UserModel.findOne({ email });
-        if (existingUser) {
-            return { status: "fail", message: "Email already in use. Please use a different email or login." };
-        }
-
-        // Hash the password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create new user
-        const newUser = await UserModel.create({
-            email: email,
-            password: hashedPassword
-        });
-        
-        // Return user object without sensitive data
-        const token = await EncodeToken(newUser.email, newUser._id);
-
-        // Return user object with token
-        const userResponse = {
-            _id: newUser._id,
-            email: newUser.email,
-            createdAt: newUser.createdAt,
-            updatedAt: newUser.updatedAt,
-            token: token  // Include the token
-        };
-        
         return { 
             status: "success", 
-            message: "Account created successfully",
-            data: userResponse 
+            data: data 
         };
     } catch (e) {
-        // More detailed error handling
-        if (e.name === 'ValidationError') {
-            return { status: "fail", message: `Validation error: ${e.message}` };
-        } else if (e.name === 'MongoError') {
-            return { status: "fail", message: "Database error occurred" };
-        }
+        console.error("Error in readBlogService:", e);
         return { 
             status: "error", 
-            message: "An unexpected error occurred during registration",
+            message: "Failed to fetch blogs",
             systemMessage: e.message 
         };
     }
-}
+};
 
-export const UserLoginService = async (email, password) => { 
+
+export const editBlogService = async (req) => {
     try {
-        // Validate email format
-        if (!validateEmail(email)) {
-            return { status: "fail", message: "Invalid email format" };
+        const { blogID, title, post } = req.body; // Extract blogID and updated fields
+        const userID = req.user.user_id; // From JWT token
+
+        // 1. Check if the blog exists and belongs to the user
+        const existingBlog = await BlogModel.findOne({ _id: blogID, userID });
+        if (!existingBlog) {
+            return { 
+                status: "fail", 
+                message: "Blog not found or you don't have permission to edit it." 
+            };
         }
 
-        // Find user by email
-        const user = await UserModel.findOne({ email });
-        if (!user) {
-            // Generic message for security (don't reveal if user exists)
-            return { status: "fail", message: "Invalid credentials" };
-        }
+        // 2. Update the blog
+        const updatedBlog = await BlogModel.findByIdAndUpdate(
+            blogID,
+            { title, post }, // Only update these fields
+            { new: true, runValidators: true } // Return updated doc + validate data
+        ).populate('userID', '-password');
 
-        // Compare passwords
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return { status: "fail", message: "Invalid credentials" };
-        }
-
-        // Generate JWT token
-        const token = await EncodeToken(user.email, user._id);
-
-        // Create user response with token
-        const userResponse = {
-            _id: user._id,
-            email: user.email,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-            token: token
-        };
-        
         return { 
             status: "success", 
-            message: "Login successful",
-            data: userResponse
+            data: updatedBlog,
+            message: "Blog updated successfully." 
         };
     } catch (e) {
-        // Error handling
+        console.error("Error in editBlogService:", e);
         if (e.name === 'ValidationError') {
-            return { status: "fail", message: `Validation error: ${e.message}` };
-        } else if (e.name === 'MongoError') {
-            return { status: "fail", message: "Database error occurred" };
+            return { 
+                status: "fail", 
+                message: `Validation error: ${e.message}` 
+            };
         }
         return { 
             status: "error", 
-            message: "An unexpected error occurred during login",
+            message: "Failed to edit blog",
             systemMessage: e.message 
         };
     }
-}
+};
+
+export const deleteBlogService = async (req) => {
+    try {
+        const { blogID } = req.body; //blogID from req body
+        const userID = req.user.user_id; // JWT token
+
+        //if  blog exists and belongs to the user
+        const existingBlog = await BlogModel.findOne({ _id: blogID, userID });
+        if (!existingBlog) {
+            return { 
+                status: "fail", 
+                message: "Blog not found or you don't have permission to delete it." 
+            };
+        }
+
+        // 2. Delete the blog
+        await BlogModel.deleteOne({ _id: blogID });
+
+        return { 
+            status: "success", 
+            message: "Blog deleted successfully." 
+        };
+    } catch (e) {
+        console.error("Error in deleteBlogService:", e);
+        if (e.name === 'CastError') {
+            return { 
+                status: "fail", 
+                message: "Invalid blog ID format" 
+            };
+        }
+        return { 
+            status: "error", 
+            message: "Failed to delete blog",
+            systemMessage: e.message 
+        };
+    }
+};
+
+
